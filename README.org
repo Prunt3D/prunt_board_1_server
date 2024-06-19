@@ -1,0 +1,5 @@
+* UDEV Rule
+#+begin_src
+cat /etc/udev/rules.d/99-libftdi.rules
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", GROUP="dialout", MODE="0660"
+#+end_src
