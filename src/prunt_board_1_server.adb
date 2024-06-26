@@ -110,7 +110,7 @@ procedure Prunt_Board_1_Server is
                   R_Top : constant Resistance  := 2_000.0 * ohm;
                   R_Bot : constant Resistance  := Temperature_To_Resistance (Thermistors (T), Temp);
                begin
-                  Message.Thermistor_Curves (T) (I).Value := ADC_Value (R_Bot / (R_Bot + R_Top) * 2.0**16);
+                  Message.Thermistor_Curves (T) (I).Value := ADC_Value (R_Bot / (R_Bot + R_Top) * (2.0**16 - 1.0));
                   Message.Thermistor_Curves (T) (I).Temp  := Fixed_Point_Celcius (Temp);
                end;
             end if;
