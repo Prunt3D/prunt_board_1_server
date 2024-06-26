@@ -31,6 +31,7 @@ with Communications;
 with GNAT.Serial_Communications;
 with Prunt.Thermistors; use Prunt.Thermistors;
 with Prunt.TMC_Types.TMC2240;
+with Ada.Containers.Generic_Constrained_Array_Sort;
 
 use type Prunt.TMC_Types.TMC2240.UART_Node_Address;
 
@@ -78,6 +79,14 @@ procedure Prunt_Board_1_Server is
 
    package My_Communications is new Communications (Report_Error, Report_Temperature);
 
+   function Sort_Curve_By_ADC_Value_Comparator (Left, Right : Thermistor_Point) return Boolean is
+   begin
+      return Left.Value < Right.Value;
+   end Sort_Curve_By_ADC_Value_Comparator;
+
+   procedure Sort_Curve_By_ADC_Value is new Ada.Containers.Generic_Constrained_Array_Sort
+     (Thermistor_Curve_Index, Thermistor_Point, Thermistor_Curve, Sort_Curve_By_ADC_Value_Comparator);
+
    procedure Setup (Heaters : Heater_Parameters_Array_Type; Thermistors : Thermistor_Parameters_Array_Type) is
       Message : Message_From_Server_Content := (Kind => Setup_Kind, others => <>);
    begin
@@ -95,9 +104,9 @@ procedure Prunt_Board_1_Server is
                   Temp  : constant Temperature :=
                     Thermistors (T).Minimum_Temperature +
                     (Thermistors (T).Maximum_Temperature - Thermistors (T).Minimum_Temperature) /
-                      (Dimensionless (Thermistor_Curve_Index'Last) -
+                    (Dimensionless (Thermistor_Curve_Index'Last) -
                        Dimensionless (Thermistor_Curve_Index'First)) *
-                      (Dimensionless (I) - Dimensionless (Thermistor_Curve_Index'First));
+                    (Dimensionless (I) - Dimensionless (Thermistor_Curve_Index'First));
                   R_Top : constant Resistance  := 2_000.0 * ohm;
                   R_Bot : constant Resistance  := Temperature_To_Resistance (Thermistors (T), Temp);
                begin
@@ -106,6 +115,8 @@ procedure Prunt_Board_1_Server is
                end;
             end if;
          end loop;
+
+         Sort_Curve_By_ADC_Value (Message.Thermistor_Curves (T));
       end loop;
 
       My_Communications.Runner.Send_Message (Message);
