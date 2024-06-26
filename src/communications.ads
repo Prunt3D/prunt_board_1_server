@@ -4,6 +4,7 @@ with Ada.Exceptions;
 
 generic
    with procedure Report_Error (Occurrence : Ada.Exceptions.Exception_Occurrence);
+   with procedure Report_Temperature (Thermistor : Thermistor_Name; Temp : Fixed_Point_Celcius);
 package Communications is
 
    task Runner with CPU => 4 is

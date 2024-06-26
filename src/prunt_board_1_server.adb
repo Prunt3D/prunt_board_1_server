@@ -74,7 +74,9 @@ procedure Prunt_Board_1_Server is
 
    procedure Report_Error (Occurrence : Ada.Exceptions.Exception_Occurrence);
 
-   package My_Communications is new Communications (Report_Error);
+   procedure Report_Temperature (Thermistor : Thermistor_Name; Temp : Fixed_Point_Celcius);
+
+   package My_Communications is new Communications (Report_Error, Report_Temperature);
 
    procedure Setup (Heaters : Heater_Parameters_Array_Type; Thermistors : Thermistor_Parameters_Array_Type) is
       Message : Message_From_Server_Content := (Kind => Setup_Kind, others => <>);
@@ -352,6 +354,11 @@ procedure Prunt_Board_1_Server is
    begin
       My_Controller.Report_External_Error (Occurrence);
    end Report_Error;
+
+   procedure Report_Temperature (Thermistor : Messages.Thermistor_Name; Temp : Fixed_Point_Celcius) is
+   begin
+      My_Controller.Report_Temperature (Thermistor, Temperature (Temp));
+   end Report_Temperature;
 begin
    if Ada.Command_Line.Argument_Count /= 1 then
       raise Constraint_Error with "Usage: " & Ada.Command_Line.Command_Name & " <serial port path>";

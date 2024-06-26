@@ -146,6 +146,10 @@ package body Communications is
             end if;
          end loop;
 
+         for T in Thermistor_Name loop
+            Report_Temperature (T, Reply.Content.Temperatures (T));
+         end loop;
+
          Last_Received_Index := @ + 1;
       end Send_And_Handle_Reply;
 
