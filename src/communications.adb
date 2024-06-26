@@ -195,14 +195,29 @@ package body Communications is
             end if;
          end;
 
-         loop
-            declare
-               Received_Message : aliased Message_From_Client;
-            begin
+         declare
+            Received_Message : aliased Message_From_Client;
+         begin
+            loop
                Get_Reply (Received_Message);
                exit when Checksum_Is_Good (Received_Message);
-            end;
-         end loop;
+            end loop;
+
+            if Received_Message.Content.Kind /= Hello_Kind then
+               raise Constraint_Error
+                 with "Expected hello message from MCU but got " & Received_Message.Content.Kind'Image;
+            end if;
+
+            if Received_Message.Content.ID /= (16#582B_2677#, 16#BC92_75B7#, 16#C3EE_543E#, 16#0426_11A8#) then
+               raise Constraint_Error with "The connected board does not appear to be a Prunt Board 1.";
+            end if;
+
+            if Received_Message.Content.Version /= 1 then
+               raise Constraint_Error
+                 with "Expected protocol version 1 but got " & Received_Message.Content.Version'Image &
+                 ". Update the server to the latest version.";
+            end if;
+         end;
       end Init;
 
       loop
