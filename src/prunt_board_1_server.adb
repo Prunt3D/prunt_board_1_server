@@ -317,8 +317,13 @@ procedure Prunt_Board_1_Server is
    end TMC_Read;
 
    procedure Wait_Until_Heater_Stable (Last_Command : Command_Index; Heater : Heater_Name) is
+      Client_Reply : Message_From_Client_Content;
    begin
-      null; --  TODO
+      My_Communications.Runner.Send_Message_And_Wait_For_Reply
+        ((Kind               => Wait_Until_Heater_Stable_Kind,
+          Index              => <>,
+          Heater_To_Wait_For => Heater),
+         Client_Reply);
    end Wait_Until_Heater_Stable;
 
    package My_Controller is new Prunt.Controller
