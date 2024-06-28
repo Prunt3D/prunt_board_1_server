@@ -126,18 +126,30 @@ procedure Prunt_Board_1_Server is
 
          case Heaters (H).Kind is
             when My_Controller_Generic_Types.Disabled_Kind =>
-               Message.Heater_Params := (Kind => Disabled_Kind);
+               Message.Heater_Params :=
+                 (Kind                 => Disabled_Kind,
+                  Max_Cumulative_Error => Fixed_Point_Celcius (Heaters (H).Max_Cumulative_Error),
+                  Check_Gain_Time      => Fixed_Point_Seconds (Heaters (H).Check_Gain_Time),
+                  Check_Minimum_Gain   => Fixed_Point_Celcius (Heaters (H).Check_Minimum_Gain),
+                  Hysteresis           => Fixed_Point_Celcius (Heaters (H).Hysteresis));
             when My_Controller_Generic_Types.PID_Kind =>
                Message.Heater_Params :=
                  (Kind                        => PID_Kind,
+                  Max_Cumulative_Error        => Fixed_Point_Celcius (Heaters (H).Max_Cumulative_Error),
+                  Check_Gain_Time             => Fixed_Point_Seconds (Heaters (H).Check_Gain_Time),
+                  Check_Minimum_Gain          => Fixed_Point_Celcius (Heaters (H).Check_Minimum_Gain),
+                  Hysteresis                  => Fixed_Point_Celcius (Heaters (H).Hysteresis),
                   Proportional_Scale          => Fixed_Point_PID_Parameter (Heaters (H).Proportional_Scale),
                   Integral_Scale              => Fixed_Point_PID_Parameter (Heaters (H).Integral_Scale),
                   Derivative_Scale            => Fixed_Point_PID_Parameter (Heaters (H).Derivative_Scale),
                   Proportional_On_Measurement => Byte_Boolean (Heaters (H).Proportional_On_Measurement));
             when My_Controller_Generic_Types.Bang_Bang_Kind =>
                Message.Heater_Params :=
-                 (Kind       => Bang_Bang_Kind,
-                  Max_Delta  => Fixed_Point_Celcius (Heaters (H).Max_Delta));
+                 (Kind                 => Bang_Bang_Kind,
+                  Max_Cumulative_Error => Fixed_Point_Celcius (Heaters (H).Max_Cumulative_Error),
+                  Check_Gain_Time      => Fixed_Point_Seconds (Heaters (H).Check_Gain_Time),
+                  Check_Minimum_Gain   => Fixed_Point_Celcius (Heaters (H).Check_Minimum_Gain),
+                  Hysteresis           => Fixed_Point_Celcius (Heaters (H).Hysteresis));
          end case;
 
          My_Communications.Runner.Send_Message (Message);
