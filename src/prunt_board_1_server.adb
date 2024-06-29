@@ -141,8 +141,7 @@ procedure Prunt_Board_1_Server is
                   Hysteresis                  => Fixed_Point_Celcius (Heaters (H).Hysteresis),
                   Proportional_Scale          => Fixed_Point_PID_Parameter (Heaters (H).Proportional_Scale),
                   Integral_Scale              => Fixed_Point_PID_Parameter (Heaters (H).Integral_Scale),
-                  Derivative_Scale            => Fixed_Point_PID_Parameter (Heaters (H).Derivative_Scale),
-                  Proportional_On_Measurement => Byte_Boolean (Heaters (H).Proportional_On_Measurement));
+                  Derivative_Scale            => Fixed_Point_PID_Parameter (Heaters (H).Derivative_Scale));
             when My_Controller_Generic_Types.Bang_Bang_Kind =>
                Message.Heater_Params :=
                  (Kind                 => Bang_Bang_Kind,
