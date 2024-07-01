@@ -32,6 +32,7 @@ with GNAT.Serial_Communications;
 with Prunt.Thermistors; use Prunt.Thermistors;
 with Prunt.TMC_Types.TMC2240;
 with Ada.Containers.Generic_Constrained_Array_Sort;
+with Prunt.Heaters; use Prunt.Heaters;
 
 use type Prunt.TMC_Types.TMC2240.UART_Node_Address;
 
@@ -87,11 +88,14 @@ procedure Prunt_Board_1_Server is
    procedure Sort_Curve_By_ADC_Value is new Ada.Containers.Generic_Constrained_Array_Sort
      (Thermistor_Curve_Index, Thermistor_Point, Thermistor_Curve, Sort_Curve_By_ADC_Value_Comparator);
 
-   procedure Setup (Heaters : Heater_Parameters_Array_Type; Thermistors : Thermistor_Parameters_Array_Type) is
+   procedure Setup
+     (Heater_Thermistors : My_Controller_Generic_Types.Heater_Thermistor_Map;
+      Thermistors        : Thermistor_Parameters_Array_Type)
+   is
       Message : Message_From_Server_Content := (Kind => Setup_Kind, others => <>);
    begin
       for H in Heater_Name loop
-         Message.Heater_Thermistors (H) := Heaters (H).Thermistor;
+         Message.Heater_Thermistors (H) := Heater_Thermistors (H);
       end loop;
 
       for T in Thermistor_Name loop
@@ -104,9 +108,8 @@ procedure Prunt_Board_1_Server is
                   Temp  : constant Temperature :=
                     Thermistors (T).Minimum_Temperature +
                     (Thermistors (T).Maximum_Temperature - Thermistors (T).Minimum_Temperature) /
-                    (Dimensionless (Thermistor_Curve_Index'Last) -
-                       Dimensionless (Thermistor_Curve_Index'First)) *
-                    (Dimensionless (I) - Dimensionless (Thermistor_Curve_Index'First));
+                      (Dimensionless (Thermistor_Curve_Index'Last) - Dimensionless (Thermistor_Curve_Index'First)) *
+                      (Dimensionless (I) - Dimensionless (Thermistor_Curve_Index'First));
                   R_Top : constant Resistance  := 2_000.0 * ohm;
                   R_Bot : constant Resistance  := Temperature_To_Resistance (Thermistors (T), Temp);
                begin
@@ -122,41 +125,51 @@ procedure Prunt_Board_1_Server is
       My_Communications.Runner.Send_Message (Message);
 
       for H in Heater_Name loop
-         Message := (Kind => Heater_Reconfigure_Kind, Index => <>, Heater => H, Heater_Params => <>);
-
-         case Heaters (H).Kind is
-            when My_Controller_Generic_Types.Disabled_Kind =>
-               Message.Heater_Params :=
-                 (Kind                 => Disabled_Kind,
-                  Max_Cumulative_Error => Fixed_Point_Celcius (Heaters (H).Max_Cumulative_Error),
-                  Check_Gain_Time      => Fixed_Point_Seconds (Heaters (H).Check_Gain_Time),
-                  Check_Minimum_Gain   => Fixed_Point_Celcius (Heaters (H).Check_Minimum_Gain),
-                  Hysteresis           => Fixed_Point_Celcius (Heaters (H).Hysteresis));
-            when My_Controller_Generic_Types.PID_Kind =>
-               Message.Heater_Params :=
-                 (Kind                        => PID_Kind,
-                  Max_Cumulative_Error        => Fixed_Point_Celcius (Heaters (H).Max_Cumulative_Error),
-                  Check_Gain_Time             => Fixed_Point_Seconds (Heaters (H).Check_Gain_Time),
-                  Check_Minimum_Gain          => Fixed_Point_Celcius (Heaters (H).Check_Minimum_Gain),
-                  Hysteresis                  => Fixed_Point_Celcius (Heaters (H).Hysteresis),
-                  Proportional_Scale          => Fixed_Point_PID_Parameter (Heaters (H).Proportional_Scale),
-                  Integral_Scale              => Fixed_Point_PID_Parameter (Heaters (H).Integral_Scale),
-                  Derivative_Scale            => Fixed_Point_PID_Parameter (Heaters (H).Derivative_Scale));
-            when My_Controller_Generic_Types.Bang_Bang_Kind =>
-               Message.Heater_Params :=
-                 (Kind                 => Bang_Bang_Kind,
-                  Max_Cumulative_Error => Fixed_Point_Celcius (Heaters (H).Max_Cumulative_Error),
-                  Check_Gain_Time      => Fixed_Point_Seconds (Heaters (H).Check_Gain_Time),
-                  Check_Minimum_Gain   => Fixed_Point_Celcius (Heaters (H).Check_Minimum_Gain),
-                  Hysteresis           => Fixed_Point_Celcius (Heaters (H).Hysteresis));
-         end case;
-
+         Message :=
+           (Kind          => Heater_Reconfigure_Kind,
+            Index         => <>,
+            Heater        => H,
+            Heater_Params => (Kind => Disabled_Kind, others => <>));
          My_Communications.Runner.Send_Message (Message);
       end loop;
 
       Message := (Kind => Enable_High_Power_Switch_Kind, Index => <>);
       My_Communications.Runner.Send_Message (Message);
    end Setup;
+
+   procedure Reconfigure_Heater (Heater : Heater_Name; Params : Prunt.Heaters.Heater_Parameters) is
+      Message : Message_From_Server_Content :=
+        (Kind => Heater_Reconfigure_Kind, Index => <>, Heater => Heater, Heater_Params => <>);
+   begin
+      case Params.Kind is
+         when Prunt.Heaters.Disabled_Kind =>
+            Message.Heater_Params :=
+              (Kind                 => Disabled_Kind,
+               Max_Cumulative_Error => Fixed_Point_Celcius (Params.Max_Cumulative_Error),
+               Check_Gain_Time      => Fixed_Point_Seconds (Params.Check_Gain_Time),
+               Check_Minimum_Gain   => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
+               Hysteresis           => Fixed_Point_Celcius (Params.Hysteresis));
+         when Prunt.Heaters.PID_Kind =>
+            Message.Heater_Params :=
+              (Kind                 => PID_Kind,
+               Max_Cumulative_Error => Fixed_Point_Celcius (Params.Max_Cumulative_Error),
+               Check_Gain_Time      => Fixed_Point_Seconds (Params.Check_Gain_Time),
+               Check_Minimum_Gain   => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
+               Hysteresis           => Fixed_Point_Celcius (Params.Hysteresis),
+               Proportional_Scale   => Fixed_Point_PID_Parameter (Params.Proportional_Scale),
+               Integral_Scale       => Fixed_Point_PID_Parameter (Params.Integral_Scale),
+               Derivative_Scale     => Fixed_Point_PID_Parameter (Params.Derivative_Scale));
+         when Prunt.Heaters.Bang_Bang_Kind =>
+            Message.Heater_Params :=
+              (Kind                 => Bang_Bang_Kind,
+               Max_Cumulative_Error => Fixed_Point_Celcius (Params.Max_Cumulative_Error),
+               Check_Gain_Time      => Fixed_Point_Seconds (Params.Check_Gain_Time),
+               Check_Minimum_Gain   => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
+               Hysteresis           => Fixed_Point_Celcius (Params.Hysteresis));
+      end case;
+
+      My_Communications.Runner.Send_Message (Message);
+   end Reconfigure_Heater;
 
    procedure Enable_Stepper (Stepper : Stepper_Name) is
    begin
@@ -360,9 +373,10 @@ procedure Prunt_Board_1_Server is
             TMC2240_UART_Address   => Messages.Stepper_Name'Pos (I) + 1,
             TMC2240_UART_Write     => TMC_Write'Access,
             TMC2240_UART_Read      => TMC_Read'Access)),
-      Interpolation_Time         => 58_706.0 / 600_000_000.0 * s,
-      Loop_Interpolation_Time    => 58_706.0 / 600_000_000.0 * Dimensionless (Loop_Move_Multiplier) * s,
+      Interpolation_Time         => 64_623.0 / 600_000_000.0 * s,
+      Loop_Interpolation_Time    => 64_623.0 / 600_000_000.0 * Dimensionless (Loop_Move_Multiplier) * s,
       Setup                      => Setup,
+      Reconfigure_Heater         => Reconfigure_Heater,
       Setup_For_Loop_Move        => Setup_For_Loop_Move,
       Setup_For_Conditional_Move => Setup_For_Conditional_Move,
       Enqueue_Command            => Enqueue_Command,
