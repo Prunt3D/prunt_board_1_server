@@ -38,7 +38,7 @@ use type Prunt.TMC_Types.TMC2240.UART_Node_Address;
 
 procedure Prunt_Board_1_Server is
 
-   Loop_Move_Multiplier : constant := 100;
+   Loop_Move_Multiplier : constant := 200; --  Approximately 10ms
 
    package My_Controller_Generic_Types is new Prunt.Controller_Generic_Types
      (Stepper_Name      => Stepper_Name,
