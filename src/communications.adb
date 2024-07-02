@@ -53,6 +53,10 @@ package body Communications is
          loop
             GNAT.Serial_Communications.Read (Port, Received (Last + 1 .. Received'Last), Last);
 
+            if Last_Last = Last then
+               raise UART_Timeout_Error with "MCU communication timed out.";
+            end if;
+
             declare
                Bytes_Consumed : Stream_Element_Offset := 0;
             begin
@@ -165,7 +169,7 @@ package body Communications is
             Block     => False,
             Local     => True,
             Flow      => GNAT.Serial_Communications.None,
-            Timeout   => Duration'Last);
+            Timeout   => 10.0);
 
          declare
             Byte               : Stream_Element_Array (1 .. 1);
@@ -244,7 +248,7 @@ package body Communications is
                   Reply := Received_Message.Content;
                end Send_Message_And_Wait_For_Reply;
             or
-               delay 1.0;
+               delay 0.2;
                --  Send a status message after a timeout, but only if setup is done.
                if Last_Received_Index > 0 then
                   Message_To_Send.Content := (Kind => Status_Kind, Index => <>);

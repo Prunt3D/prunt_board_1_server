@@ -7,6 +7,8 @@ generic
    with procedure Report_Temperature (Thermistor : Thermistor_Name; Temp : Fixed_Point_Celcius);
 package Communications is
 
+   UART_Timeout_Error : exception;
+
    task Runner with CPU => 4 is
       entry Init (Port_Name : GNAT.Serial_Communications.Port_Name);
       entry Send_Message (Content : Message_From_Server_Content);
