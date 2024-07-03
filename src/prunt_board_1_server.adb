@@ -360,11 +360,31 @@ procedure Prunt_Board_1_Server is
       Reply : Message_From_Client_Content;
    begin
       loop
+         exit when Last_Enqueued_Command_Index >= Last_Command;
+      end loop;
+
+      loop
          My_Communications.Runner.Send_Message_And_Wait_For_Reply
            ((Kind => Check_If_Heater_Stable_Kind, Index => <>, Heater_To_Check => Heater), Reply);
          exit when Reply.Condition_Met;
       end loop;
    end Wait_Until_Heater_Stable;
+
+   procedure Autotune_Heater (Heater : Heater_Name; Setpoint : Temperature) is
+      Reply : Message_From_Client_Content;
+   begin
+      My_Communications.Runner.Send_Message
+        ((Kind             => Heater_Autotune_Kind,
+          Index            => <>,
+          Heater_To_Tune   => Heater,
+          Setpoint_To_Tune => Fixed_Point_Celcius (Setpoint / celcius)));
+
+      loop
+         My_Communications.Runner.Send_Message_And_Wait_For_Reply
+           ((Kind => Check_If_Heater_Autotune_Done_Kind, Index => <>, Heater_To_Check => Heater), Reply);
+         exit when Reply.Condition_Met;
+      end loop;
+   end Autotune_Heater;
 
    package My_Controller is new Prunt.Controller
      (Generic_Types              => My_Controller_Generic_Types,
@@ -380,6 +400,7 @@ procedure Prunt_Board_1_Server is
       Loop_Interpolation_Time    => 58_490.0 / 1_200_000_000.0 * Dimensionless (Loop_Move_Multiplier) * s,
       Setup                      => Setup,
       Reconfigure_Heater         => Reconfigure_Heater,
+      Autotune_Heater            => Autotune_Heater,
       Setup_For_Loop_Move        => Setup_For_Loop_Move,
       Setup_For_Conditional_Move => Setup_For_Conditional_Move,
       Enqueue_Command            => Enqueue_Command,
