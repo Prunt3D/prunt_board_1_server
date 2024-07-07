@@ -38,7 +38,7 @@ use type Prunt.TMC_Types.TMC2240.UART_Node_Address;
 
 procedure Prunt_Board_1_Server is
 
-   Loop_Move_Multiplier : constant := 50; --  Approximately 2.5ms
+   Loop_Move_Multiplier : constant := 1024;
 
    package My_Controller_Generic_Types is new Prunt.Controller_Generic_Types
      (Stepper_Name      => Stepper_Name,
@@ -202,7 +202,9 @@ procedure Prunt_Board_1_Server is
    Last_Enqueued_Command_Index : Command_Index := Command_Index'First with
      Atomic, Volatile;
 
-   Last_Stepper_Position : Stepper_Position := (others => 0.0);
+   Last_Stepper_Position   : Stepper_Position := (others => 0.0);
+   Last_Commanded_Position : Stepper_Position := (others => 0.0);
+
    Next_Step_Delta_List_Index : Step_Delta_List_Index := Step_Delta_List_Index'First;
    Step_Delta_Message : aliased Message_From_Server_Content :=
      (Kind            => Regular_Step_Delta_List_Kind,
@@ -228,14 +230,23 @@ procedure Prunt_Board_1_Server is
             Safe_Stop_After => False,
             Steps           => (others => (Steps => (others => 0), Dirs => (others => Forward))));
       end Send_Message_And_Reset;
-
-      Offset : Stepper_Position := Rounding (Command.Pos - Last_Stepper_Position);
    begin
       if Command.Loop_Until_Hit then
          if Step_Delta_Message.Last_Index /= Step_Delta_List_Index'First then
             Step_Delta_Message.Last_Index := @ - 1;
             Send_Message_And_Reset;
          end if;
+
+            declare
+               Total_Offset : constant Stepper_Position :=
+                 (Command.Pos - Last_Commanded_Position) * Dimensionless (Loop_Move_Multiplier);
+            begin
+            for S in Stepper_Name loop
+               if Total_Offset (S) > 0.0 and Total_Offset (S) < 20.0 then
+                  raise Constraint_Error with "Loop move direction vector error potentially greater than 5%.";
+               end if;
+            end loop;
+            end;
 
          Step_Delta_Message :=
            (Kind            => Looping_Step_Delta_List_Kind,
@@ -250,15 +261,15 @@ procedure Prunt_Board_1_Server is
          Step_Delta_Message.Fan_Targets    := (for F in Fan_Name => Fixed_Point_PWM_Scale (Command.Fans (F)));
 
          declare
-            Last_Offset : Stepper_Position := (others => 0.0);
+            Last_Rounded_Offset : Stepper_Position := (others => 0.0);
          begin
             for I in Step_Delta_List_Index range 1 .. Loop_Move_Multiplier loop
                declare
-                  This_Offset  : constant Stepper_Position :=
-                    Rounding (Offset * (Dimensionless (I) / Dimensionless (Loop_Move_Multiplier)));
-                  Delta_Offset : constant Stepper_Position := Rounding (This_Offset - Last_Offset);
+                  Unrounded_Offset : constant Stepper_Position :=
+                    (Command.Pos - Last_Commanded_Position) * Dimensionless (I);
+                  Delta_Offset     : constant Stepper_Position := Rounding (Unrounded_Offset - Last_Rounded_Offset);
                begin
-                  Last_Offset := @ + Delta_Offset;
+                  Last_Rounded_Offset := Rounding (Unrounded_Offset);
                   for X of Delta_Offset loop
                      if abs X > Dimensionless (Step_Count'Last) then
                         raise Constraint_Error with "Step rate too high. Delta_Offset = " & Delta_Offset'Image;
@@ -266,48 +277,59 @@ procedure Prunt_Board_1_Server is
                      end if;
                   end loop;
 
-                  Step_Delta_Message.Steps (Step_Delta_List_Index'First + I).Steps :=
-                    (for I in Stepper_Name => Step_Count (abs Delta_Offset (I)));
-                  Step_Delta_Message.Steps (Step_Delta_List_Index'First + I).Dirs :=
-                    (for I in Stepper_Name => (if Delta_Offset (I) >= 0.0 then Forward else Backward));
+                  Step_Delta_Message.Steps (Step_Delta_List_Index'First + I - 1).Steps :=
+                    (for J in Stepper_Name => Step_Count (abs Delta_Offset (J)));
+                  Step_Delta_Message.Steps (Step_Delta_List_Index'First + I - 1).Dirs :=
+                    (for J in Stepper_Name => (if Delta_Offset (J) >= 0.0 then Forward else Backward));
                end;
             end loop;
          end;
 
          Send_Message_And_Reset;
+
+         Last_Stepper_Position := Rounding (Command.Pos);
+         --  TODO: Take error between stepper position and commanded position in to account. It is unlikely that this
+         --  will ever matter in practice, but it would be nice to have.
       else
-         for X of Offset loop
-            if abs X > Dimensionless (Step_Count'Last) then
-               raise Constraint_Error with "Step rate too high. Offset = " & Offset'Image;
-               --  TODO: Add a way to ensure that this will never occur based on the configuration.
+         declare
+            Offset : Stepper_Position := Rounding (Command.Pos - Last_Stepper_Position);
+         begin
+            for X of Offset loop
+               if abs X > Dimensionless (Step_Count'Last) then
+                  raise Constraint_Error with "Step rate too high. Offset = " & Offset'Image;
+                  --  TODO: Add a way to ensure that this will never occur based on the configuration.
+               end if;
+            end loop;
+
+            Step_Delta_Message.Steps (Step_Delta_Message.Last_Index).Steps :=
+              (for I in Stepper_Name => Step_Count (abs Offset (I)));
+            Step_Delta_Message.Steps (Step_Delta_Message.Last_Index).Dirs :=
+              (for I in Stepper_Name => (if Offset (I) >= 0.0 then Forward else Backward));
+
+            Step_Delta_Message.Heater_Targets := (for H in Heater_Name => Fixed_Point_Celcius (Command.Heaters (H)));
+            Step_Delta_Message.Fan_Targets    := (for F in Fan_Name => Fixed_Point_PWM_Scale (Command.Fans (F)));
+
+            if Command.Safe_Stop_After then
+               Step_Delta_Message.Safe_Stop_After := True;
+               Send_Message_And_Reset;
+            elsif Step_Delta_Message.Last_Index = Step_Delta_List_Index'Last then
+               Send_Message_And_Reset;
+            else
+               Step_Delta_Message.Last_Index := @ + 1;
             end if;
-         end loop;
 
-         Step_Delta_Message.Steps (Step_Delta_Message.Last_Index).Steps :=
-           (for I in Stepper_Name => Step_Count (abs Offset (I)));
-         Step_Delta_Message.Steps (Step_Delta_Message.Last_Index).Dirs :=
-           (for I in Stepper_Name => (if Offset (I) >= 0.0 then Forward else Backward));
-
-         Step_Delta_Message.Heater_Targets := (for H in Heater_Name => Fixed_Point_Celcius (Command.Heaters (H)));
-         Step_Delta_Message.Fan_Targets    := (for F in Fan_Name => Fixed_Point_PWM_Scale (Command.Fans (F)));
-
-         if Command.Safe_Stop_After then
-            Step_Delta_Message.Safe_Stop_After := True;
-            Send_Message_And_Reset;
-         elsif Step_Delta_Message.Last_Index = Step_Delta_List_Index'Last then
-            Send_Message_And_Reset;
-         else
-            Step_Delta_Message.Last_Index := @ + 1;
-         end if;
+            Last_Stepper_Position := @ + Offset;
+         end;
       end if;
 
-      Last_Stepper_Position := @ + Offset;
+      Last_Commanded_Position     := Command.Pos;
       Last_Enqueued_Command_Index := Command.Index;
    end Enqueue_Command;
 
    procedure Reset_Position (Pos : Stepper_Position) is
    begin
-      Last_Stepper_Position := Rounding (Pos);
+      Last_Commanded_Position := Pos;
+      Last_Stepper_Position   := Rounding (Pos);
       --  TODO: Take error between stepper position and commanded position in to account. It is unlikely that this will
       --  ever matter in practice, but it would be nice to have.
    end Reset_Position;
@@ -397,7 +419,7 @@ procedure Prunt_Board_1_Server is
             TMC2240_UART_Write     => TMC_Write'Access,
             TMC2240_UART_Read      => TMC_Read'Access)),
       Interpolation_Time         => 58_490.0 / 1_200_000_000.0 * s,
-      Loop_Interpolation_Time    => 58_490.0 / 1_200_000_000.0 * Dimensionless (Loop_Move_Multiplier) * s,
+      Loop_Interpolation_Time    => 58_490.0 / 1_200_000_000.0 * s,
       Setup                      => Setup,
       Reconfigure_Heater         => Reconfigure_Heater,
       Autotune_Heater            => Autotune_Heater,
