@@ -144,28 +144,40 @@ procedure Prunt_Board_1_Server is
       case Params.Kind is
          when Prunt.Heaters.Disabled_Kind =>
             Message.Heater_Params :=
-              (Kind                 => Disabled_Kind,
-               Max_Cumulative_Error => Fixed_Point_Celcius (Params.Max_Cumulative_Error),
-               Check_Gain_Time      => Fixed_Point_Seconds (Params.Check_Gain_Time),
-               Check_Minimum_Gain   => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
-               Hysteresis           => Fixed_Point_Celcius (Params.Hysteresis));
+              (Kind                       => Disabled_Kind,
+               Check_Max_Cumulative_Error => Fixed_Point_Celcius (Params.Check_Max_Cumulative_Error),
+               Check_Gain_Time            => Fixed_Point_Seconds (Params.Check_Gain_Time),
+               Check_Minimum_Gain         => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
+               Check_Hysteresis           => Fixed_Point_Celcius (Params.Check_Hysteresis));
          when Prunt.Heaters.PID_Kind =>
             Message.Heater_Params :=
-              (Kind                 => PID_Kind,
-               Max_Cumulative_Error => Fixed_Point_Celcius (Params.Max_Cumulative_Error),
-               Check_Gain_Time      => Fixed_Point_Seconds (Params.Check_Gain_Time),
-               Check_Minimum_Gain   => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
-               Hysteresis           => Fixed_Point_Celcius (Params.Hysteresis),
-               Proportional_Scale   => Fixed_Point_PID_Parameter (Params.Proportional_Scale),
-               Integral_Scale       => Fixed_Point_PID_Parameter (Params.Integral_Scale),
-               Derivative_Scale     => Fixed_Point_PID_Parameter (Params.Derivative_Scale));
+              (Kind                       => PID_Kind,
+               Check_Max_Cumulative_Error => Fixed_Point_Celcius (Params.Check_Max_Cumulative_Error),
+               Check_Gain_Time            => Fixed_Point_Seconds (Params.Check_Gain_Time),
+               Check_Minimum_Gain         => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
+               Check_Hysteresis           => Fixed_Point_Celcius (Params.Check_Hysteresis),
+               Proportional_Scale         => Fixed_Point_PID_Parameter (Params.Proportional_Scale),
+               Integral_Scale             => Fixed_Point_PID_Parameter (Params.Integral_Scale),
+               Derivative_Scale           => Fixed_Point_PID_Parameter (Params.Derivative_Scale));
          when Prunt.Heaters.Bang_Bang_Kind =>
             Message.Heater_Params :=
-              (Kind                 => Bang_Bang_Kind,
-               Max_Cumulative_Error => Fixed_Point_Celcius (Params.Max_Cumulative_Error),
-               Check_Gain_Time      => Fixed_Point_Seconds (Params.Check_Gain_Time),
-               Check_Minimum_Gain   => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
-               Hysteresis           => Fixed_Point_Celcius (Params.Hysteresis));
+              (Kind                       => Bang_Bang_Kind,
+               Check_Max_Cumulative_Error => Fixed_Point_Celcius (Params.Check_Max_Cumulative_Error),
+               Check_Gain_Time            => Fixed_Point_Seconds (Params.Check_Gain_Time),
+               Check_Minimum_Gain         => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
+               Check_Hysteresis           => Fixed_Point_Celcius (Params.Check_Hysteresis),
+               Bang_Bang_Hysteresis       => Fixed_Point_Celcius (Params.Bang_Bang_Hysteresis));
+         when Prunt.Heaters.PID_Autotune_Kind =>
+            Message.Heater_Params :=
+              (Kind                       => PID_Autotune_Kind,
+               Check_Max_Cumulative_Error => Fixed_Point_Celcius (Params.Check_Max_Cumulative_Error),
+               Check_Gain_Time            => Fixed_Point_Seconds (Params.Check_Gain_Time),
+               Check_Minimum_Gain         => Fixed_Point_Celcius (Params.Check_Minimum_Gain),
+               Check_Hysteresis           => Fixed_Point_Celcius (Params.Check_Hysteresis),
+               Max_Cycles                 => Messages.PID_Autotune_Cycle_Count (Params.Max_Cycles),
+               Proportional_Tuning_Factor => Fixed_Point_PID_Parameter (Params.Proportional_Tuning_Factor),
+               Derivative_Tuning_Factor   => Fixed_Point_PID_Parameter (Params.Derivative_Tuning_Factor / hertz),
+               PID_Tuning_Temperature     => Fixed_Point_Celcius (Params.PID_Tuning_Temperature));
       end case;
 
       My_Communications.Runner.Send_Message (Message);
@@ -378,28 +390,10 @@ procedure Prunt_Board_1_Server is
       Reply := (for I in Reply'Range => Prunt.TMC_Types.TMC2240.UART_Byte (Client_Reply.TMC_Data (9 - I)));
    end TMC_Read;
 
-   procedure Wait_Until_Heater_Stable (Last_Command : Command_Index; Heater : Heater_Name) is
+   procedure Autotune_Heater (Heater : Heater_Name; Params : Prunt.Heaters.Heater_Parameters) is
       Reply : Message_From_Client_Content;
    begin
-      loop
-         exit when Last_Enqueued_Command_Index >= Last_Command;
-      end loop;
-
-      loop
-         My_Communications.Runner.Send_Message_And_Wait_For_Reply
-           ((Kind => Check_If_Heater_Stable_Kind, Index => <>, Heater_To_Check => Heater), Reply);
-         exit when Reply.Condition_Met;
-      end loop;
-   end Wait_Until_Heater_Stable;
-
-   procedure Autotune_Heater (Heater : Heater_Name; Setpoint : Temperature) is
-      Reply : Message_From_Client_Content;
-   begin
-      My_Communications.Runner.Send_Message
-        ((Kind             => Heater_Autotune_Kind,
-          Index            => <>,
-          Heater_To_Tune   => Heater,
-          Setpoint_To_Tune => Fixed_Point_Celcius (Setpoint / celcius)));
+      Reconfigure_Heater (Heater, Params);
 
       loop
          My_Communications.Runner.Send_Message_And_Wait_For_Reply
@@ -428,7 +422,6 @@ procedure Prunt_Board_1_Server is
       Enqueue_Command            => Enqueue_Command,
       Reset_Position             => Reset_Position,
       Wait_Until_Idle            => Wait_Until_Idle,
-      Wait_Until_Heater_Stable   => Wait_Until_Heater_Stable,
       Config_Path                => "./prunt_board_1.toml",
       Command_Generator_CPU      => 3);
 
