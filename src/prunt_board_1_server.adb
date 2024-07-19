@@ -78,7 +78,9 @@ procedure Prunt_Board_1_Server is
 
    procedure Report_Temperature (Thermistor : Thermistor_Name; Temp : Fixed_Point_Celcius);
 
-   package My_Communications is new Communications (Report_Error, Report_Temperature);
+   procedure Report_Heater_Power (Heater : Heater_Name; Power : Fixed_Point_PWM_Scale);
+
+   package My_Communications is new Communications (Report_Error, Report_Temperature, Report_Heater_Power);
 
    function Sort_Curve_By_ADC_Value_Comparator (Left, Right : Thermistor_Point) return Boolean is
    begin
@@ -434,6 +436,11 @@ procedure Prunt_Board_1_Server is
    begin
       My_Controller.Report_Temperature (Thermistor, Temperature (Temp));
    end Report_Temperature;
+
+   procedure Report_Heater_Power (Heater : Messages.Heater_Name; Power : Fixed_Point_PWM_Scale) is
+   begin
+      My_Controller.Report_Heater_Power (Heater, PWM_Scale (Power));
+   end Report_Heater_Power;
 begin
    if Ada.Command_Line.Argument_Count /= 1 then
       raise Constraint_Error with "Usage: " & Ada.Command_Line.Command_Name & " <serial port path>";

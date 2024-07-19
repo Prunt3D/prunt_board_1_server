@@ -5,6 +5,7 @@ with Ada.Exceptions;
 generic
    with procedure Report_Error (Occurrence : Ada.Exceptions.Exception_Occurrence);
    with procedure Report_Temperature (Thermistor : Thermistor_Name; Temp : Fixed_Point_Celcius);
+   with procedure Report_Heater_Power (Heater : Heater_Name; Power : Fixed_Point_PWM_Scale);
 package Communications is
 
    UART_Timeout_Error : exception;
