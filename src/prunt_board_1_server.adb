@@ -21,7 +21,7 @@
 
 with Prunt;       use Prunt;
 with Prunt.Controller;
-with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Text_IO;
 with Ada.Exceptions;
 with GNAT.OS_Lib;
 with Prunt.Controller_Generic_Types;
@@ -58,11 +58,6 @@ procedure Prunt_Board_1_Server is
    begin
       return (for I in Stepper_Name => Left (I) + Right (I));
    end "+";
-
-   function "/" (Left : Stepper_Position; Right : Dimensionless) return Stepper_Position is
-   begin
-      return (for I in Stepper_Name => Left (I) / Right);
-   end "/";
 
    function "*" (Left : Stepper_Position; Right : Dimensionless) return Stepper_Position is
    begin
@@ -219,7 +214,6 @@ procedure Prunt_Board_1_Server is
    Last_Stepper_Position   : Stepper_Position := (others => 0.0);
    Last_Commanded_Position : Stepper_Position := (others => 0.0);
 
-   Next_Step_Delta_List_Index : Step_Delta_List_Index := Step_Delta_List_Index'First;
    Step_Delta_Message : aliased Message_From_Server_Content :=
      (Kind            => Regular_Step_Delta_List_Kind,
       Index           => <>,
@@ -228,7 +222,6 @@ procedure Prunt_Board_1_Server is
       Heater_Targets  => (others => Fixed_Point_Celcius'First),
       Safe_Stop_After => False,
       Steps           => (others => (Steps => (others => 0), Dirs => (others => Forward))));
-   Step_Delta_List_Is_Empty : Boolean := True;
 
    procedure Enqueue_Command (Command : Queued_Command) is
       procedure Send_Message_And_Reset is
@@ -251,16 +244,16 @@ procedure Prunt_Board_1_Server is
             Send_Message_And_Reset;
          end if;
 
-            declare
-               Total_Offset : constant Stepper_Position :=
-                 (Command.Pos - Last_Commanded_Position) * Dimensionless (Loop_Move_Multiplier);
-            begin
+         declare
+            Total_Offset : constant Stepper_Position :=
+              (Command.Pos - Last_Commanded_Position) * Dimensionless (Loop_Move_Multiplier);
+         begin
             for S in Stepper_Name loop
                if Total_Offset (S) > 0.0 and Total_Offset (S) < 20.0 then
                   raise Constraint_Error with "Loop move direction vector error potentially greater than 5%.";
                end if;
             end loop;
-            end;
+         end;
 
          Step_Delta_Message :=
            (Kind            => Looping_Step_Delta_List_Kind,
@@ -306,7 +299,7 @@ procedure Prunt_Board_1_Server is
          --  will ever matter in practice, but it would be nice to have.
       else
          declare
-            Offset : Stepper_Position := Rounding (Command.Pos - Last_Stepper_Position);
+            Offset : constant Stepper_Position := Rounding (Command.Pos - Last_Stepper_Position);
          begin
             for X of Offset loop
                if abs X > Dimensionless (Step_Count'Last) then
