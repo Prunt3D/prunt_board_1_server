@@ -158,6 +158,10 @@ package body Communications is
             Report_Heater_Power (H, Reply.Content.Heaters (H));
          end loop;
 
+         for S in Input_Switch_Name loop
+            Report_Input_Switch_State (S, Reply.Content.Switches (S));
+         end loop;
+
          Last_Received_Index := @ + 1;
       end Send_And_Handle_Reply;
 

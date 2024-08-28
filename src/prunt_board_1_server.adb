@@ -75,7 +75,10 @@ procedure Prunt_Board_1_Server is
 
    procedure Report_Heater_Power (Heater : Heater_Name; Power : Fixed_Point_PWM_Scale);
 
-   package My_Communications is new Communications (Report_Error, Report_Temperature, Report_Heater_Power);
+   procedure Report_Input_Swtich_State (Switch : Messages.Input_Switch_Name; State : Messages.Input_Switch_State);
+
+   package My_Communications is new Communications
+     (Report_Error, Report_Temperature, Report_Heater_Power, Report_Input_Swtich_State);
 
    function Sort_Curve_By_ADC_Value_Comparator (Left, Right : Thermistor_Point) return Boolean is
    begin
@@ -434,6 +437,11 @@ procedure Prunt_Board_1_Server is
    begin
       My_Controller.Report_Heater_Power (Heater, PWM_Scale (Power));
    end Report_Heater_Power;
+
+   procedure Report_Input_Swtich_State (Switch : Messages.Input_Switch_Name; State : Messages.Input_Switch_State) is
+   begin
+      My_Controller.Report_Input_Switch_State (Switch, (if State = High then High_State else Low_State));
+   end Report_Input_Swtich_State;
 begin
    if Ada.Command_Line.Argument_Count /= 1 then
       raise Constraint_Error with "Usage: " & Ada.Command_Line.Command_Name & " <serial port path>";
